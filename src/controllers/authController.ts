@@ -34,16 +34,7 @@ export const login = async (req: { body: any, headers: any, cookies: any }, res:
         const resp = await login2({ usuario, senha })
 
 
-        const { accessToken, refreshToken } = generateTokens(resp);
-
-        res.cookie("rfssid", refreshToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "strict",
-            path: "/",
-            maxAge: 2 * 24 * 60 * 60 * 1000
-        });
-
+        const { accessToken } = generateTokens(resp);
 
         return res.status(200).json({ success: true, usuario_id: resp.id, dados: { message: "Login realizado!", token: accessToken } })
 
@@ -56,11 +47,10 @@ export const login = async (req: { body: any, headers: any, cookies: any }, res:
 //checa o token de acesso e retorna o Id do usuario
 export const checkLogin = async (req: any, res: any) => {
     const accessToken = req.headers["authorization"];
-    const refreshToken = req.cookies.rfssid;
 
-    console.log({ accessToken, refreshToken })
+    console.log(accessToken)
 
-    if (!accessToken || !refreshToken) {
+    if (!accessToken) {
         return res.status(200).json({ success: false, error: "Não autorizado" });
     }
 
@@ -88,48 +78,15 @@ export const checkLogin = async (req: any, res: any) => {
 //limpa o token refresh
 export const logout = async (req: any, res: any) => {
     const authHeader = req.headers['authorization'];
-    const hmac = req.headers["hmac"];
-    const fingerPrint = req.cookies.riptn;
-    const ssid = req.cookies.rfssid
     const token = authHeader.split(' ')[1];
 
     try {
 
-        const decodedRefresh = jwt.verify(ssid, process.env.REFRESH_SECRET as string);
         const decodedAccess = jwt.verify(token, process.env.ACCESS_SECRET as string);
 
-        if (typeof decodedRefresh !== "object" || !decodedRefresh.id || typeof decodedAccess !== "object" || !decodedAccess.id) {
+        if (typeof decodedAccess !== "object" || !decodedAccess.id) {
             return res.status(403).json({ error: "token inválido." });
         }
-
-        res.cookie("rfssid", "", {
-            httpOnly: true,
-            secure: false,
-            sameSite: "Strict",
-            // domain: "localhost",
-            path: "/",
-            maxAge: -1,
-            expires: -1
-        })
-
-        res.cookie("seddra", "", {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            // domain: "localhost",
-            path: "/",
-            maxAge: -1
-        })
-
-        res.cookie("riptn", "", {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            // domain: "localhost",
-            path: "/",
-            maxAge: -1
-        })
-
         return res.status(200).json({ success: true, message: "Logout realizado!" });
 
     } catch (error) {
@@ -139,8 +96,6 @@ export const logout = async (req: any, res: any) => {
 
 
 export const authenticate = async (req: any, res: any, next: any) => {
-    const refreshToken = req.cookies.rfssid;
-    const hmac = req.headers["hmac"];
     const authHeader = req.headers["authorization"];
 
 
@@ -165,33 +120,7 @@ export const authenticate = async (req: any, res: any, next: any) => {
     } catch (err: any) {
         if (err.name === "TokenExpiredError") {
 
-            if (!refreshToken) {
-                return res.status(401).json({ error: "Token expirado e nenhum refresh token foi fornecido" });
-            }
-
-            console.log("---------------------passou de refresh 1--------------")
-
             try {
-
-                console.log("---------------------passou de sessão 1--------------")
-
-                console.log("---------------------passou de sessão x hmac--------------")
-
-                const decodedRefresh = jwt.verify(refreshToken, process.env.REFRESH_SECRET as string);
-
-                if (typeof decodedRefresh !== "object" || !decodedRefresh.id) {
-                    return res.status(401).json({ error: "Refresh token inválido." });
-                }
-
-                console.log("---------------------passou de decoded --------------")
-
-                const { accessToken } = generateTokens({ id: decodedRefresh.id });
-
-                console.log("---------------------gerou outro token--------------")
-
-                res.setHeader("Authorization", `Bearer ${accessToken}`);
-
-                req.headers["authorization"] = `Bearer ${accessToken}`;
 
                 return next();
             } catch (refreshErr) {
